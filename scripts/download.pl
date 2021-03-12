@@ -75,9 +75,10 @@ sub download_cmd {
 	my $have_curl = 0;
 	my $fn = shift;
 	my @mrs = @_;
-	my $murl = '';
+	my $murl = "'$url'";
 
-
+	my @chArray = ('a'..'z', 'A'..'Z', 0..9);
+	my $rfn = join '', map{ $chArray[int rand @chArray] } 0..9;
 	if (open CURL, '-|', 'curl', '--version') {
 		if (defined(my $line = readline CURL)) {
 			$have_curl = 1 if $line =~ /^curl /;
@@ -86,13 +87,11 @@ sub download_cmd {
 	}
 
 	for my $el (@mrs) {
-		$murl = $murl . "$el/$fn".'\t';
+		$murl = $murl." '$el/$fn'";
 	}
-	#print("$murl\n\n\n\n\n");
 
 	return $have_curl
-		#? (qw(curl -f --connect-timeout 20 --retry 5 --location --insecure), shellwords($ENV{CURL_OPTIONS} || ''), $url)
-		? ('/usr/bin/echo -e "'.$murl.'"|/usr/bin/aria2c -q -c -i - ; /usr/bin/cat ' .$fn.'; rm '.$fn)
+		? ("/usr/bin/aria2c $murl -c -x2 -s10 -j10 -k1M --server-stat-of=/dev/shm/spp --server-stat-if=/dev/shm/spp -d /dev/shm -o $rfn -q; /usr/bin/cat /dev/shm/$rfn; rm /dev/shm/$rfn")
 		: (qw(wget --tries=5 --timeout=20 --no-check-certificate --output-document=-), shellwords($ENV{WGET_OPTIONS} || ''), $url)
 	;
 }
@@ -151,7 +150,6 @@ sub download
 			}
 		};
 	} else {
-		#print("@mrs\tmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\n");
 		my @cmd = download_cmd("$mirror/$download_filename", $download_filename, @mrs);
 		print STDERR "+ ".join(" ",@cmd)."\n";
 		open(FETCH_FD, '-|', @cmd) or die "Cannot launch curl or wget.\n";
@@ -317,8 +315,8 @@ while (!-f "$target/$filename") {
 	my $mirror = shift @mirrors;
 	$mirror or die "No more mirrors to try - giving up.\n";
 
-	#print("@mirrors\n");
 	download($mirror, $url_filename, @mirrors);
+	@mirrors=();
 	if (!-f "$target/$filename" && $url_filename ne $filename) {
 		download($mirror, $filename);
 	}
